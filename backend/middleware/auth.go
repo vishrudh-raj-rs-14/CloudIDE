@@ -13,13 +13,11 @@ var secretKey = []byte(os.Getenv("JWT_SECRET"))
 func Protect(c *fiber.Ctx) error {
 	tokenString := c.Cookies("jwt")
 	if tokenString == "" {
-		fmt.Println("Token missing in cookie")
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"status":  "error",
 			"message": "Not authorized",
 		})
 	}
-
 	token, err := verifyToken(tokenString)
 	if err != nil {
 		fmt.Printf("Token verification failed: %v\n", err)
@@ -30,6 +28,8 @@ func Protect(c *fiber.Ctx) error {
 	}
 
 	fmt.Printf("Token verified successfully. Claims: %+v\n", token.Claims)
+	userID := token.Claims.(jwt.MapClaims)["sub"]
+	c.Locals("userID", userID)
 
 	return c.Next()
 }

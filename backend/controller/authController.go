@@ -70,7 +70,7 @@ func Login(c *fiber.Ctx) error {
 	if err != nil {
 		return fmt.Errorf("password does not match")
 	}
-	token, err := createToken(user.ID.Hex())
+	token, err := createToken(userDb.ID.Hex())
 	if(err!=nil){
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
             "status":  "error",

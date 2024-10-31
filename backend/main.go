@@ -42,6 +42,9 @@ func main() {
     })
 
 	app.Route("/api/auth", routes.Auth_router)
+	app.Route("/api/repl", routes.Repl_router)
+	app.Route("/api/repl/terminal/:replId", routes.Terminal_Router)
+	
 
     // Start the server
     log.Fatal(app.Listen(":3000"))

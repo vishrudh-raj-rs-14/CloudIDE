@@ -11,7 +11,7 @@ type User struct {
 	ID           primitive.ObjectID `bson:"_id,omitempty"`
 	Username     string             `bson:"username"`
 	Email        string             `bson:"email"`
-	Password string             	`bson:"password"`
+	Password     string             `bson:"password"`
 	CreatedAt    time.Time          `bson:"createdAt"`
 	LastLogin    time.Time          `bson:"lastLogin"`
 	Preferences  UserPreferences    `bson:"preferences"`
