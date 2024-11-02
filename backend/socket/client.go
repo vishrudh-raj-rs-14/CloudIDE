@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/gofiber/contrib/websocket"
+	"github.com/vishrudh-raj-rs-14/cloudIDEbackend/utils"
 )
 
 
@@ -36,6 +37,7 @@ type Client struct {
 
 	Conn *websocket.Conn
 	ContainerId string
+	DockerExecutor *utils.DockerExecutor
 	Send chan []byte
 }
 
@@ -97,8 +99,12 @@ func (c *Client) WritePump() {
 
 
 func ExecCommand(cmd string, client *Client){
-		time.Sleep(2*time.Second)
+		out, err := client.DockerExecutor.ExecuteCommand(cmd)
 		fmt.Println("Executed ", cmd , " in ", client.ContainerId)
-		client.Send<-[]byte(cmd)
+		fmt.Println(out, err, cmd)
+		if(err!=nil){
+			client.Send<-[]byte(err.Error())
+		}
+		client.Send<-[]byte(out)
 
 }

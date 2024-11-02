@@ -3,7 +3,10 @@ package utils
 import (
 	"context"
 	"fmt"
+	"io"
+	"strings"
 
+	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
 	"github.com/docker/go-connections/nat"
@@ -127,3 +130,117 @@ func CheckMyRepl(c *fiber.Ctx) error{
 	}
 	return c.Next();
 }
+
+type DockerExecutor struct {
+    client      *client.Client
+    containerID string
+    workDir     string
+}
+
+// NewDockerExecutor creates a new executor for running commands in a container
+func NewDockerExecutor(containerID string) (*DockerExecutor, error) {
+    cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+    if err != nil {
+        return nil, fmt.Errorf("failed to create docker client: %v", err)
+    }
+
+    executor := &DockerExecutor{
+        client:      cli,
+        containerID: containerID,
+        workDir:     "/usr/src/app",
+    }
+
+    // Get initial working directory
+
+    return executor, nil
+}
+
+// getCurrentWorkDir executes pwd to get the current working directory
+func (d *DockerExecutor) getCurrentWorkDir() (string, error) {
+    ctx := context.Background()
+
+    execConfig := types.ExecConfig{
+        AttachStdout: true,
+        AttachStderr: true,
+        WorkingDir:   d.workDir,
+        Cmd:         []string{"/bin/sh", "-c", "pwd"},
+    }
+
+    execID, err := d.client.ContainerExecCreate(ctx, d.containerID, execConfig)
+    if err != nil {
+        return "", fmt.Errorf("failed to create pwd exec: %v", err)
+    }
+
+    resp, err := d.client.ContainerExecAttach(ctx, execID.ID, types.ExecStartCheck{})
+    if err != nil {
+        return "", fmt.Errorf("failed to attach to pwd exec: %v", err)
+    }
+    defer resp.Close()
+
+    output, err := io.ReadAll(resp.Reader)
+    if err != nil {
+        return "", fmt.Errorf("failed to read pwd output: %v", err)
+    }
+
+    // Trim whitespace and newlines from pwd output
+    return strings.TrimSpace(string(output)), nil
+}
+
+// executeRawCommand runs a single command and returns its output
+func (d *DockerExecutor) executeRawCommand(cmd string) (string, error) {
+    ctx := context.Background()
+	wrappedCmd := fmt.Sprintf(`
+        cd "%s" && {
+            %s
+            echo "::PWD::$(pwd)"
+        }
+    `, d.workDir, cmd)
+    execConfig := types.ExecConfig{
+        AttachStdout: true,
+        AttachStderr: true,
+        WorkingDir:   d.workDir,
+        Cmd:         []string{"/bin/sh", "-c", wrappedCmd},
+    }
+
+    execID, err := d.client.ContainerExecCreate(ctx, d.containerID, execConfig)
+    if err != nil {
+        return "", fmt.Errorf("failed to create exec: %v", err)
+    }
+
+    resp, err := d.client.ContainerExecAttach(ctx, execID.ID, types.ExecStartCheck{})
+    if err != nil {
+        return "", fmt.Errorf("failed to attach to exec: %v", err)
+    }
+    defer resp.Close()
+
+    output, err := io.ReadAll(resp.Reader)
+    if err != nil {
+        return "", fmt.Errorf("failed to read output: %v", err)
+    }
+
+    return string(output), nil
+}
+
+// ExecuteCommand runs a command and updates the working directory
+func (d *DockerExecutor) ExecuteCommand(cmd string) (string, error) {
+    // Execute the actual command
+    output, err := d.executeRawCommand(cmd)
+    if err != nil {
+        return output, err
+    }
+    if pwdIndex := strings.LastIndex(output, "::PWD::"); pwdIndex != -1 {
+        newPwd := strings.TrimSpace(output[pwdIndex+7:])
+		output = strings.TrimSpace(output[:pwdIndex])
+        if newPwd != "" {
+            d.workDir = newPwd
+        }
+    }
+
+    return output, nil
+}
+
+// GetCurrentWorkDir returns the current working directory
+func (d *DockerExecutor) GetCurrentWorkDir() string {
+    return d.workDir
+}
+

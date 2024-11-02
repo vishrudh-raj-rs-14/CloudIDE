@@ -5,13 +5,17 @@ import (
 
 	"github.com/gofiber/contrib/websocket"
 	"github.com/vishrudh-raj-rs-14/cloudIDEbackend/socket"
+	"github.com/vishrudh-raj-rs-14/cloudIDEbackend/utils"
 )
 
 
 func HandleTerminalConnection(c *websocket.Conn){
+	containerId :=  c.Locals("containerId").(string);
+	executor, _ := utils.NewDockerExecutor(containerId)
 	client := &socket.Client{
 		Conn:c,
-		ContainerId: c.Locals("containerId").(string),
+		ContainerId:containerId,
+		DockerExecutor: executor,
 		Send: make(chan []byte),
 	}
 
